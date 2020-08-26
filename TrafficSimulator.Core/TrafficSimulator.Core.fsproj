@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Common.fs" />
+    <Compile Include="DomainModel.fs" />
+    <Compile Include="SimulationSetup.fs" />
+    <Compile Include="SimulationApi.fs" />
+  </ItemGroup>
+
+</Project>
