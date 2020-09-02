@@ -136,7 +136,7 @@ module DomainModel =
                              let startC = connection.Start connectionsGraph                         
                              let distance = Position.distance endC.Position startC.Position 
                              distance * distancePerUnit
-    let calculateDistanceTravelled (speed:float<m/s>) (TimeInterval timeChange) = 
+    let calculateDistanceTravelled (speed:Speed) (TimeInterval timeChange) = 
         speed * timeChange
     let calculateVehiclePosition  (connectionsGraph:ConnectionsGraph) (vehicle:Vehicle) = 
             let startPos = (vehicle.Location.Placing.Start connectionsGraph).Position
@@ -248,19 +248,20 @@ module DomainModel =
             choosers |> Seq.map (fun choser -> choser distanceToObstacle) |> Seq.tryPick (fun accel -> accel)
 
        // let vehicleAccelerationUpdater2 (accelerationChooser:ByDistanceAccelerationChooser) (timeChange:TimeInterval) vehicle = 
-    module VehicleUpdateWorflow = 
-        type VehicleUpdateWorkflow = seq<VehicleUpdater>
-        let apply (timeInterval:TimeInterval) (vehicle:Vehicle) (workflow: VehicleUpdateWorkflow) =
-            workflow |> Seq.fold (fun vehicle vUpdater -> vUpdater timeInterval vehicle) vehicle
-    module VehiclesUpdaters =     
-        let update (vehicleUpdater: VehicleUpdater) (timeChange:TimeInterval) (vehicles:Vehicle seq) = 
-            vehicles |> Seq.map (vehicleUpdater timeChange) 
-        // updates vehicles on the same connection starting from vehicle with highest position on this connection
-        let updateByPlacing (vehiclesUpdater: VehiclesUpdater) (timeChange:TimeInterval) (vehicles:Vehicle seq) = 
-            vehicles |> Seq.groupBy (fun v -> v.Location.Placing) 
-                     |> Seq.map ( (fun (_,vehicles) ->  vehicles |> Seq.sortByDescending (fun v->v.Location.CurrentProgress)) 
-                                    >> (fun vehiclesOnSameConnection -> vehiclesOnSameConnection |> vehiclesUpdater timeChange))
-                     |> Seq.fold (fun acc cur -> acc |> Seq.append cur) Seq.empty
-                                                                
+
+      
+  
+    //module VehiclesUpdaters =  
+     
+    //    let update (vehicleUpdater: VehicleUpdater) (timeChange:TimeInterval) (vehicles:Vehicle seq) = 
+    //        vehicles |> Seq.map (vehicleUpdater timeChange) 
+    //    // updates vehicles on the same connection starting from vehicle with highest position on this connection
+    //    let updateByPlacing (vehiclesUpdater: VehiclesUpdater) (timeChange:TimeInterval) (vehicles:Vehicle seq) = 
+    //        vehicles |> Seq.groupBy (fun v -> v.Location.Placing) 
+    //                 |> Seq.map ( (fun (_,vehicles) ->  vehicles |> Seq.sortByDescending (fun v->v.Location.CurrentProgress)) 
+    //                                >> (fun vehiclesOnSameConnection -> vehiclesOnSameConnection |> vehiclesUpdater timeChange))
+    //                 |> Seq.fold (fun acc cur -> acc |> Seq.append cur) Seq.empty
+        //let updateWithWorflow (workflow: VehicleUpdateWorkflow) (timeChange:TimeInterval) (vehicles:Vehicle seq) = 
+        //            vehicles |> Seq.map ( fun vehicle -> workflow |> apply timeChange vehicle)                                                
 
     
