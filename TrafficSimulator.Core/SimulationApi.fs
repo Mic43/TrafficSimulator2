@@ -17,5 +17,5 @@ module Api =
     let runQuery:QueryRunner = fun query ->
         match query with
             | Init -> Setup.ApiFunctions.init ()
-    let getVehiclePosition = DomainFunctions.calculateVehiclePosition
+    let getVehiclePosition = DomainFunctions.calculateVehiclePosition // to refactor
         

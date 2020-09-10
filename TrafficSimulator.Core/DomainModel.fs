@@ -6,6 +6,7 @@ open System
 module DomainModel =    
 
     type CrossingId = CrossingId of int   
+    type VehicleId = VehicleId of int
     type TimeInterval =  TimeInterval of float<s>  
 
     type [<Struct>] Position2d =  {X:float;Y:float}
@@ -31,17 +32,20 @@ module DomainModel =
                              getValue this
     module Fraction =
         let create (value:float) = 
-            if (value >= 0.0 && value <= 1.0) 
+            if ((Math.Abs value) <= 1.0) 
                 then Some(Fraction value)
                 else None        
         let zero = Fraction 0.0
         let one = Fraction 1.0
 
-        let fromDistance (distance:float<m>) (connectionLenght:float<m>) = 
+        let fromDistance (distance:Distance) (connectionLenght:float<m>) = 
             create (distance / connectionLenght)
-        let toDistance (connectionLenght:float<m>) (Fraction value) =
+        let toDistance (connectionLenght:Distance) (Fraction value) =
             value*connectionLenght
-  
+        let distanceOnSameConnecton (progressFrom:Fraction) (progressTo:Fraction) connectionLenght= 
+                  let dist =  create (progressTo.Value - progressFrom.Value) 
+                                  |> Option.defaultWith (fun () -> failwith "Not possible to create fraction not between -1 and 1")
+                  toDistance connectionLenght dist
     type Connection = {ConnectionType:ConnectionType;StartId:CrossingId;EndId:CrossingId}
     type DrivePath = private DrivePath of Map<CrossingId,Connection>
    
@@ -50,8 +54,10 @@ module DomainModel =
     type VehicleTypeParams = {MaximumParamaters:VehicleMotionParams;MinimumParameters:VehicleMotionParams}
     module VehicleTypes = 
         let type1 = {MaximumParamaters = {Acceleration = 6.0<m/(s*s)>;Speed = 10.0<m/s>};
-                     MinimumParameters = {Acceleration = -10.0<m/(s*s)>;Speed = -1.0<m/s>}}
-    type Vehicle = {Location:VehicleLocation;CurrentMotionParams:VehicleMotionParams;
+                     MinimumParameters = {Acceleration = -20.0<m/(s*s)>;Speed = 0.0<m/s>}}
+        let type2 = {MaximumParamaters = {Acceleration = 8.0<m/(s*s)>;Speed = 13.0<m/s>};
+                            MinimumParameters = {Acceleration = -20.0<m/(s*s)>;Speed = 0.0<m/s>}}
+    type Vehicle = {Id:VehicleId;Location:VehicleLocation;CurrentMotionParams:VehicleMotionParams;
                     VehicleTypeParams:VehicleTypeParams;DrivePath:DrivePath option}
 
     type ConnectionsGraph = private { Crossings:Map<CrossingId,Crossing>; CrossingsOutput: Map<CrossingId,Connection seq>;} 
@@ -82,13 +88,14 @@ module DomainModel =
                     Some(DrivePath (connectionsToVisit |> Seq.map (fun conn -> conn.StartId, conn) |> Map.ofSeq ))
         let tryGetConnection crossingId (DrivePath driveSchedule) = 
             driveSchedule |> Map.tryFind crossingId
-    type SimulationState = {ConnectionsGraph:ConnectionsGraph; Vehicles: Vehicle seq}
+    type SimulationState = {ConnectionsGraph:ConnectionsGraph; Vehicles: Vehicle seq} // TODO: change to map by id
     type Connection with 
             member this.Start (cg:ConnectionsGraph) = 
                 ConnectionsGraph.crossing cg this.StartId
             member this.End (cg:ConnectionsGraph) = 
                 ConnectionsGraph.crossing cg this.EndId   
     type VehicleDistanceAccelerationMap = Map<Distance,Acceleration> 
+    type Obstacle = OtherVehicle of Vehicle | Crossing of Crossing | Tmp
 
  module DomainFunctions = 
     open DomainModel  
@@ -113,11 +120,8 @@ module DomainModel =
     
                 (A_32*Sabc + A_2*B*(Sabc-C_2) + (4.0*C*A-B*B)*log( (2.0*A_2+BA+Sabc)/(BA+C_2))) / (4.0*A_32);                
     
-    type ConnectionLenghtProvider = Connection -> float<m>    
-    type VehicleUpdater = TimeInterval->Vehicle->Vehicle
-    type VehicleLocationUpdater = VehicleLocation->VehicleLocation
-   // type ProgressTravelledCalculator = unit -> Progress
-    type VehiclesUpdater = TimeInterval->Vehicle seq->Vehicle seq
+    type ConnectionLenghtProvider = Connection -> Distance  
+
     type NextConnectionChooser = CrossingId -> Connection option
 
     module LenghtProviders = 
@@ -156,6 +160,9 @@ module DomainModel =
                                                             let a = (1.0 - t) * (1.0 - t)
                                                             {X = p1.X + a * (p0.X - p1.X) + t*t*(p2.X-p1.X);
                                                              Y = p1.Y + a * (p0.Y - p1.Y) + t*t*(p2.Y-p1.Y) }
+    let getVehiclesOnConnection  connection vehicles = 
+         vehicles |> Seq.filter (fun v -> v.Location.Placing = connection)
+        
     module NextConnectionChoosers = 
         let chooseFirst connectionsGraph crossingId =
             ConnectionsGraph.crossingOutputs connectionsGraph crossingId |> Seq.tryHead         
@@ -167,101 +174,3 @@ module DomainModel =
                 outputs|> Seq.item ((Seq.length outputs) |> Random().Next) |> Some  
         let chooseByDrivePath schedule crossingId = 
             schedule |> DrivePath.tryGetConnection crossingId
-
-    module VehicleLocationUpdaters = 
-        //stopping when encounters crossing
-        // let simpleLocationUpdater  (progressTravelled: Progress) (vehicleLocation:VehicleLocation)= 
-        //     let newProgres = Progress.add (Progress.fromFraction vehicleLocation.CurrentProgress) progressTravelled      
-        //     {vehicleLocation with CurrentProgress = newProgres.Fractions}
-
-        // // always choosing first route on crossing
-        // let locationUpdater (connectionsGraph:ConnectionsGraph) (progressTravelled: Progress) (vehicleLocation:VehicleLocation) = 
-        //     let newProgres = Progress.add (Progress.fromFraction vehicleLocation.CurrentProgress) progressTravelled      
-        //     let destination = ConnectionsGraph.crossingOutputs connectionsGraph vehicleLocation.Placing.EndId |> Seq.tryHead
-        //     let newPlacing = if newProgres.Unities < 1      
-        //                         then vehicleLocation.Placing 
-        //                         else destination |> Option.defaultValue vehicleLocation.Placing
-        //     {CurrentProgress = newProgres.Fractions;Placing = newPlacing}
-        // let locationUpdater (nextConnectionChooser:NextConnectionChooser) (progressTravelled: Progress) (vehicleLocation:VehicleLocation)  = 
-        //     let newProgres = Progress.add (Progress.fromFraction vehicleLocation.CurrentProgress) progressTravelled      
-        //     let newPlacing = if newProgres.Unities < 1      
-        //                         then vehicleLocation.Placing 
-        //                         else (nextConnectionChooser vehicleLocation.Placing.EndId |> Option.defaultValue vehicleLocation.Placing) 
-        //     {CurrentProgress = newProgres.Fractions;Placing = newPlacing}
-       
-        let locationUpdater (conectionLenghtProvider:ConnectionLenghtProvider) (nextConnectionChooser:NextConnectionChooser) (distance:float<m>) (vehicleLocation:VehicleLocation) =             
-            let rec locationUpdaterHelper conectionLenghtProvider (nextConnectionChooser:NextConnectionChooser) currentConnection distance initialDistance  =             
-                let locationUpdaterHelper = locationUpdaterHelper conectionLenghtProvider (nextConnectionChooser:NextConnectionChooser) 
-                let lenght = conectionLenghtProvider currentConnection
-                let calculateFraction () = let v = Fraction.fromDistance (initialDistance + distance) lenght 
-                                           v |> Option.defaultWith (fun () -> failwith "Cannot create fraction greater than 1: ")
-                let buildResult () =  {VehicleLocation.CurrentProgress = calculateFraction();VehicleLocation.Placing = currentConnection}
-
-                if initialDistance + distance <= lenght 
-                    then                     
-                        buildResult()
-                    else
-                        let nextConnection = nextConnectionChooser currentConnection.EndId
-                        match nextConnection with 
-                            | None -> {VehicleLocation.CurrentProgress = Fraction.one;VehicleLocation.Placing = currentConnection}                       
-                            | Some(nextConnection) -> 
-                                let distanceLeft = (distance - (lenght - initialDistance))
-                                locationUpdaterHelper nextConnection distanceLeft 0.0<m>
-            let currentConnection = vehicleLocation.Placing
-            let currentDistance = vehicleLocation.CurrentProgress |> Fraction.toDistance (conectionLenghtProvider currentConnection)          
-            locationUpdaterHelper conectionLenghtProvider nextConnectionChooser currentConnection distance currentDistance
-
-    // updates only location of a vehicle
-    module VehicleUpdaters = 
-        let simpleVehicleUpdater (vehicleLocationUpdater:VehicleLocationUpdater) vehicle =  
-            let newVehicleLocation = vehicleLocationUpdater vehicle.Location
-            {vehicle with Location = newVehicleLocation}
-        let vehicleSpeedUpdater (innerVehicleUpdater:VehicleUpdater) (timeChange:TimeInterval) vehicle = 
-            let (TimeInterval dt) = timeChange
-            let newSpeed =  vehicle.CurrentMotionParams.Speed + (vehicle.CurrentMotionParams.Acceleration * dt) 
-            let maxSpeed = vehicle.VehicleTypeParams.MaximumParamaters.Speed
-            let minSpeed = vehicle.VehicleTypeParams.MinimumParameters.Speed
-
-            let speedCapped = if newSpeed > minSpeed then (if newSpeed < maxSpeed then newSpeed else maxSpeed) else minSpeed
-            let newMotionParams = {vehicle.CurrentMotionParams with Speed = speedCapped}
-            innerVehicleUpdater timeChange {vehicle with CurrentMotionParams = newMotionParams}
-        let vehicleAccelerationUpdater viewDistnace targetSpeed (connectionLenghtProvider:ConnectionLenghtProvider) 
-                                       (innerVehicleUpdater:VehicleUpdater) (timeChange:TimeInterval) vehicle = 
-            //let viewDistnace = 5.0<m>
-            let len = connectionLenghtProvider vehicle.Location.Placing
-            let travelled = Fraction.toDistance len vehicle.Location.CurrentProgress
-          //  let targetSpeed = 1.0<m/s>
-            let newAccel = 
-                if len - travelled < viewDistnace
-                    then
-                        if vehicle.CurrentMotionParams.Speed > targetSpeed
-                            then vehicle.VehicleTypeParams.MinimumParameters.Acceleration 
-                            else 0.0<m/(s*s)>
-                    else vehicle.VehicleTypeParams.MaximumParamaters.Acceleration
-            let newMotionParams = {vehicle.CurrentMotionParams with Acceleration = newAccel}
-            innerVehicleUpdater timeChange {vehicle with CurrentMotionParams = newMotionParams}        
-        
-        type ByDistanceAccelerationChooser = Distance->Acceleration
-        let accelerationChooser (distanceAccelerationMap:VehicleDistanceAccelerationMap) (distanceToObstacle:Distance) = 
-            distanceAccelerationMap |> Map.tryPick (fun dist accel ->  if distanceToObstacle < dist then Some(accel) else None)  
-        let compositeAccelerationChooser (choosers:seq<Distance->Acceleration option>) (distanceToObstacle:Distance) = 
-            choosers |> Seq.map (fun choser -> choser distanceToObstacle) |> Seq.tryPick (fun accel -> accel)
-
-       // let vehicleAccelerationUpdater2 (accelerationChooser:ByDistanceAccelerationChooser) (timeChange:TimeInterval) vehicle = 
-
-      
-  
-    //module VehiclesUpdaters =  
-     
-    //    let update (vehicleUpdater: VehicleUpdater) (timeChange:TimeInterval) (vehicles:Vehicle seq) = 
-    //        vehicles |> Seq.map (vehicleUpdater timeChange) 
-    //    // updates vehicles on the same connection starting from vehicle with highest position on this connection
-    //    let updateByPlacing (vehiclesUpdater: VehiclesUpdater) (timeChange:TimeInterval) (vehicles:Vehicle seq) = 
-    //        vehicles |> Seq.groupBy (fun v -> v.Location.Placing) 
-    //                 |> Seq.map ( (fun (_,vehicles) ->  vehicles |> Seq.sortByDescending (fun v->v.Location.CurrentProgress)) 
-    //                                >> (fun vehiclesOnSameConnection -> vehiclesOnSameConnection |> vehiclesUpdater timeChange))
-    //                 |> Seq.fold (fun acc cur -> acc |> Seq.append cur) Seq.empty
-        //let updateWithWorflow (workflow: VehicleUpdateWorkflow) (timeChange:TimeInterval) (vehicles:Vehicle seq) = 
-        //            vehicles |> Seq.map ( fun vehicle -> workflow |> apply timeChange vehicle)                                                
-
-    
