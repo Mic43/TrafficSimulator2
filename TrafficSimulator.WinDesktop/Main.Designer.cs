@@ -52,9 +52,9 @@
             // richTextBoxLog
             // 
             this.richTextBoxLog.Dock = System.Windows.Forms.DockStyle.Right;
-            this.richTextBoxLog.Location = new System.Drawing.Point(806, 0);
+            this.richTextBoxLog.Location = new System.Drawing.Point(716, 0);
             this.richTextBoxLog.Name = "richTextBoxLog";
-            this.richTextBoxLog.Size = new System.Drawing.Size(161, 564);
+            this.richTextBoxLog.Size = new System.Drawing.Size(251, 564);
             this.richTextBoxLog.TabIndex = 1;
             this.richTextBoxLog.Text = "";
             // 

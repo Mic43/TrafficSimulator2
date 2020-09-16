@@ -1,6 +1,7 @@
 namespace TrafficSimulator.Core
   
-open Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols             
+open Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols   
+open BaseTypes  
 open TrafficSimulator.Core.DomainModel
 
 
@@ -17,5 +18,5 @@ module Api =
     let runQuery:QueryRunner = fun query ->
         match query with
             | Init -> Setup.ApiFunctions.init ()
-    let getVehiclePosition = DomainFunctions.calculateVehiclePosition // to refactor
+    let locationToPosition = DomainFunctions.locationToPosition // to refactor
         

@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Text;
+using TrafficSimulator.Core;
 using static TrafficSimulator.Core.DomainModel;
 
 namespace TrafficSimulator.WinDesktop
@@ -26,6 +28,7 @@ namespace TrafficSimulator.WinDesktop
             }
 
             RenderConnectionsGraph();
+            RenderTrafficLights();
             RenderVehicles();
 
             void RenderConnectionsGraph()
@@ -33,11 +36,11 @@ namespace TrafficSimulator.WinDesktop
                 var crossings = ConnectionsGraphModule.crossings(simulationState.ConnectionsGraph);
                 foreach (var item in crossings)
                 {
-                    Position2d pos = item.Value.Position.Item;
+                    BaseTypes.Position2d pos = item.Value.Position.Item;
                     Point point = PositionToPixel.Compute(pos.X, pos.Y);
 
                     int radius = 4;
-                    graphics.FillEllipse(Brushes.Red, point.X - radius, point.Y - radius,
+                    graphics.FillEllipse(Brushes.Black, point.X - radius, point.Y - radius,
                        radius * 2, radius * 2);
                     foreach (var connection in ConnectionsGraphModule.crossingOutputs(simulationState.ConnectionsGraph,
                                                                                       item.Key))
@@ -48,8 +51,8 @@ namespace TrafficSimulator.WinDesktop
 
                 void RenderConnection(Connection connection)
                 {
-                    Position2d start = crossings[connection.StartId].Position.Item;
-                    Position2d end = crossings[connection.EndId].Position.Item;
+                    BaseTypes.Position2d start = crossings[connection.StartId].Position.Item;
+                    BaseTypes.Position2d end = crossings[connection.EndId].Position.Item;
 
                     var startPos = PositionToPixel.Compute(start.X, start.Y);
                     var endPos = PositionToPixel.Compute(end.X, end.Y);
@@ -61,7 +64,8 @@ namespace TrafficSimulator.WinDesktop
                     }
                     else if (connection.ConnectionType.IsQuadraticBezier)
                     {
-                        var controlPoint = ((ConnectionType.QuadraticBezier)connection.ConnectionType).Item.Item;
+                        var controlPoint = ((ConnectionType.QuadraticBezier) connection.ConnectionType).Item
+                            .controlPoint.Item;
                         var controlPointPos = PositionToPixel.Compute(controlPoint.X, controlPoint.Y);
 
                         var p2 = new Point(
@@ -76,14 +80,30 @@ namespace TrafficSimulator.WinDesktop
                     }
                 }
             }
+
+            void RenderTrafficLights()
+            {
+                foreach (var lightSystem in simulationState.TrafficLights)
+                {
+                    foreach (var trafficLight in lightSystem.getAllTrafficLights())
+                    {
+                        var pos = Api.locationToPosition.Invoke(simulationState.ConnectionsGraph).Invoke(trafficLight.Location);
+                        Point point = PositionToPixel.Compute(pos.X, pos.Y);
+                        int radius = 4;
+                        graphics.FillEllipse(trafficLight.State.IsGreen ? Brushes.Green : Brushes.Red, 
+                            point.X - radius, point.Y - radius,
+                            radius * 2, radius * 2);
+                    }
+                }
+            }
             void RenderVehicles()
             {
                 foreach (var vehicle in simulationState.Vehicles)
                 {
-                    var pos = TrafficSimulator.Core.Api.getVehiclePosition.Invoke(simulationState.ConnectionsGraph).Invoke(vehicle);
+                    var pos = Api.locationToPosition.Invoke(simulationState.ConnectionsGraph).Invoke(vehicle.Location);
                     Point point = PositionToPixel.Compute(pos.X, pos.Y);
                     int radius = 3;
-                    graphics.FillEllipse(Brushes.Green, point.X - radius, point.Y - radius,
+                    graphics.FillRectangle(Brushes.Blue, point.X - radius, point.Y - radius,
                         radius * 2, radius * 2);
                 }
 

@@ -2,41 +2,60 @@
 
 open Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols     
 open System
+open BaseTypes
 open DomainModel
 open DomainFunctions
 
 module Vehicles =    
     type VehicleUpdater = TimeInterval->Vehicle->Vehicle
-    type VehicleLocationUpdater = VehicleLocation->VehicleLocation
+    type VehicleLocationUpdater = ObjectLocation->ObjectLocation
     type VehiclesUpdater = TimeInterval->Vehicle seq->Vehicle seq
-
+ 
     module UpdateWorkflow = 
         type T = seq<VehicleUpdater>
         let apply (timeInterval:TimeInterval) (vehicle:Vehicle) (workflow: T) =
             workflow |> Seq.fold (fun vehicle vUpdater -> vUpdater timeInterval vehicle) vehicle  
 
+    type Obstacle = OtherVehicle of Vehicle | Crossing of Crossing | RedLight of TrafficLights.TrafficLight
 
     module ObstacleFinders =       
+        open TrafficLights
         type ObstacleFinder = Vehicle->(Obstacle * Distance) option          
 
-        let nearestVehiceAheadOnSameRoad (connectionLenghtProvider:ConnectionLenghtProvider) allVehicles vehicle =
-            let currentProgress vehicle = vehicle.Location.CurrentProgress
+        let nearestVehiceAheadOnSameConnection (connectionLenghtProvider:ConnectionLenghtProvider) allVehicles (vehicle:Vehicle) =
+            let currentProgress (vehicle:Vehicle) = vehicle.Location.CurrentProgress
+            let connLen = connectionLenghtProvider vehicle.Location.Placing
             let vehicles = allVehicles 
                             |> getVehiclesOnConnection vehicle.Location.Placing 
                             |> Seq.filter (fun v -> not (v.Id = vehicle.Id)) 
-                            |> Seq.filter (fun v-> v.Location.CurrentProgress > vehicle.Location.CurrentProgress)
-                            |> Seq.map (fun v -> (v,connectionLenghtProvider v.Location.Placing))
-                            |> Seq.map (fun (v,connLen) -> (v,Fraction.distanceOnSameConnecton (currentProgress vehicle) (currentProgress v) connLen))   
+                            |> Seq.filter (fun v-> v.Location.CurrentProgress > vehicle.Location.CurrentProgress)                      
+                            |> Seq.map (fun v -> (v,Fraction.distanceOnSameConnecton (currentProgress vehicle) (currentProgress v) connLen))   
             if vehicles |> Seq.isEmpty 
                 then None
             else 
                 match vehicles |>  Seq.minBy (fun (v,distance) -> distance) with
                 | (vehicle,distance) -> Some (Obstacle.OtherVehicle vehicle,distance) 
-             
+        
+        
+        // TODO: To similiart to nearestVehicleFinding
+        let nearestRedLightAheadOnSameConnection (connectionLenghtProvider:ConnectionLenghtProvider)  (trafficLights:LightSystem Set) (vehicle:Vehicle) =            
+            let connLen = connectionLenghtProvider vehicle.Location.Placing
+            let allLights = trafficLights |> Set.map (fun tl -> tl.getAllTrafficLights()) |> Set.fold (fun sum set -> sum |> Set.union set) Set.empty
+            let lights = allLights |> Set.filter (fun l -> l.Location.Placing = vehicle.Location.Placing)
+                      |> Seq.filter (fun l -> l.State = LightState.Red)
+                      |> Seq.filter (fun l-> l.Location.CurrentProgress > vehicle.Location.CurrentProgress)                       
+                      |> Seq.map (fun l -> (l,Fraction.distanceOnSameConnecton (vehicle.Location.CurrentProgress) (l.Location.CurrentProgress) connLen))  
+
+            if lights |> Seq.isEmpty 
+                then None
+            else 
+                match lights |>  Seq.minBy (fun (_,distance) -> distance) with
+                    | (light,distance) -> Some (Obstacle.RedLight light,distance) 
+
         let nextCrossing (connectionGraph:ConnectionsGraph) (connectionLenghtProvider:ConnectionLenghtProvider) (vehicle:Vehicle) =
-              let connectionLen = connectionLenghtProvider vehicle.Location.Placing
-              Some ( Obstacle.Crossing (vehicle.Location.Placing.EndId |> ConnectionsGraph.crossing connectionGraph)
-                    ,Fraction.distanceOnSameConnecton vehicle.Location.CurrentProgress Fraction.one connectionLen)
+                     let connectionLen = connectionLenghtProvider vehicle.Location.Placing
+                     Some ( Obstacle.Crossing (vehicle.Location.Placing.EndId |> ConnectionsGraph.crossing connectionGraph)
+                           ,Fraction.distanceOnSameConnecton vehicle.Location.CurrentProgress Fraction.one connectionLen)
 
         let nearestObstacle (finders:ObstacleFinder seq) vehicle =             
             let obstacles = finders |> Seq.map (fun finder -> finder vehicle) |> Seq.collect (fun obstalce_distance  -> Option.toList obstalce_distance) 
@@ -102,7 +121,7 @@ module Vehicles =
                 let lenght = conectionLenghtProvider currentConnection
                 let calculateFraction () = let v = Fraction.fromDistance (initialDistance + distance) lenght 
                                            v |> Option.defaultWith (fun () -> failwith "Cannot create fraction greater than 1: ")
-                let buildResult () =  {VehicleLocation.CurrentProgress = calculateFraction();VehicleLocation.Placing = currentConnection}
+                let buildResult () =  {ObjectLocation.CurrentProgress = calculateFraction();ObjectLocation.Placing = currentConnection}
 
                 if initialDistance + distance <= lenght 
                     then                     
@@ -110,7 +129,7 @@ module Vehicles =
                     else
                         let nextConnection = nextConnectionChooser currentConnection.EndId
                         match nextConnection with 
-                            | None -> {VehicleLocation.CurrentProgress = Fraction.one;VehicleLocation.Placing = currentConnection}                       
+                            | None -> {ObjectLocation.CurrentProgress = Fraction.one;ObjectLocation.Placing = currentConnection}                       
                             | Some(nextConnection) -> 
                                 let distanceLeft = (distance - (lenght - initialDistance))
                                 locationUpdaterHelper nextConnection distanceLeft 0.0<m>
