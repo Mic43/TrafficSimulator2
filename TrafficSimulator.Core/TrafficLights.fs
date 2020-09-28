@@ -133,7 +133,7 @@ module TrafficLights =
                     return None
                 else                   
                     let lightsDistance = 1.0<m>
-                    let getFraction len= (Fraction.fromDistance (len - lightsDistance) len) |> Option.defaultValue Fraction.zero
+                    let getFraction len= (Fraction.tryFromDistance (len - lightsDistance) len) |> Option.defaultValue Fraction.zero
                     //let! pos connection = (connectionLenProvider connection)
                     let! g1 =
                         createLightGroup
