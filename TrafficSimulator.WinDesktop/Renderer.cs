@@ -103,7 +103,9 @@ namespace TrafficSimulator.WinDesktop
                     var pos = Api.locationToPosition.Invoke(simulationState.ConnectionsGraph).Invoke(vehicle.Location);
                     Point point = PositionToPixel.Compute(pos.X, pos.Y);
                     int radius = 3;
-                    graphics.FillRectangle(Brushes.Blue, point.X - radius, point.Y - radius,
+
+                    Brush color = !vehicle.State.IsCollided ? Brushes.Blue : Brushes.Orange;
+                    graphics.FillRectangle(color, point.X - radius, point.Y - radius,
                         radius * 2, radius * 2);
                 }
 

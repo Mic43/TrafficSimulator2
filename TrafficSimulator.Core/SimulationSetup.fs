@@ -6,16 +6,18 @@ open BaseTypes
 open DomainModel
 open DomainFunctions
 open Vehicles
+open Collisions
 
 type SimulationState =
     { ConnectionsGraph: ConnectionsGraph
       Vehicles: Vehicle Set
+      Collisions: Collision Set
       TrafficLights: TrafficLights.LightSystem Set } // TODO: change to map by id
 
 module Setup =
 
     let private distancePerUnit = 10.0<m>
-
+    let private collisionDuration = TimeInterval.create 5.0<s>
     let private nextConnectionChooserFactory (vehicle: Vehicle) connectionsGraph =
         match vehicle.DrivePath with
         | Some (schedule) -> NextConnectionChoosers.chooseByDrivePath schedule
@@ -28,23 +30,23 @@ module Setup =
         let vehiclleAccelMapHard = Map.empty
                                     .Add( 3.0<m>,-10.0<m/(s*s)>)
                                     .Add( 2.0<m>,-20.0<m/(s*s)>)
-                                    .Add( 1.0<m>,-100.0<m/(s*s)>)
+                                    .Add( 1.0<m>,-75.0<m/(s*s)>)
                                     //.Add( 0.5<m>,-150.0<m/(s*s)>)
         let vehiclleAccelMapLight =
             Map.empty.Add(4.0<m>, -2.0<m/(s*s)>)
                      .Add(3.0<m>, -8.0<m/(s*s)>)
 
         let vehiclesFinder =
-            ObstacleFinders.nearestVehiceAheadOnSameConnection connectionLenghtProvider simulationState.Vehicles
+            Obstacles.Finders.nearestVehiceAheadOnSameConnection connectionLenghtProvider simulationState.Vehicles
 
         let crossingFinder =
-            ObstacleFinders.nextCrossing simulationState.ConnectionsGraph connectionLenghtProvider
+            Obstacles.Finders.nextCrossing simulationState.ConnectionsGraph connectionLenghtProvider
 
         let trafficLightsFinder =
-            ObstacleFinders.nearestRedLightAheadOnSameConnection connectionLenghtProvider simulationState.TrafficLights
+            Obstacles.Finders.nearestRedLightAheadOnSameConnection connectionLenghtProvider simulationState.TrafficLights
 
         let nearestFinder =
-            ObstacleFinders.nearestObstacle
+            Obstacles.Finders.nearestObstacle
                 (seq {
                     vehiclesFinder
                     trafficLightsFinder
@@ -65,25 +67,6 @@ module Setup =
             }
 
         Updaters.compositeUpdater updaters
-    //let private buildUpdateWorkflowForVehicle simulationState vehicle : UpdateWorkflow.T =
-    //    let connectionsGraph = simulationState.ConnectionsGraph
-
-    //    let connectionLenghtProvider  = connectionLenghtProvider connectionsGraph
-    //    let nextConnectionChooser = (nextConnectionChooserFactory vehicle connectionsGraph)
-
-    //    //let accelerationUpdater = Updaters.accelerationUpdater driverViewDistance driverTargetLowSpeed connectionLenghtProvider
-    //    let accelerationUpdater =  buildAccelerationUpdater  connectionLenghtProvider simulationState
-    //    let speedUpdater = Updaters.speedUpdater
-    //    let locationUpdater = Updaters.locationUpdater connectionLenghtProvider nextConnectionChooser
-
-    //    seq {accelerationUpdater;speedUpdater;locationUpdater}
-
-    //let private buildSequenceUpdater simulationState =
-    //    let workflows = simulationState.Vehicles |> Seq.map (fun vehicle -> {Vehicle = vehicle;Workflow = buildUpdateWorkflowForVehicle simulationState vehicle})
-    //    let innerVehiclesUpdater = SequenceUpdaters.update
-    //    let decoratedVehiclesUpdater = SequenceUpdaters.updateByPlacing innerVehiclesUpdater workflows
-    //    decoratedVehiclesUpdater
-
 
     module Computation =
         open Common.Stateful
@@ -99,9 +82,11 @@ module Setup =
                 (nextConnectionChooserFactory vehicle connectionsGraph)
 
             let collisionsVehiclesFinder =
-                ObstacleFinders.nearestVehiceAheadOnSameConnection connectionLenghtProvider simulationState.Vehicles
+                Obstacles.Finders.nearestVehiceAheadOnSameConnection connectionLenghtProvider simulationState.Vehicles
 
 
+            let vehicleStateUpdater = 
+                fromAction (Updaters.stateUpdater collisionDuration simulationState.Collisions timeChange)
             let accelerationUpdater =
                 fromAction (buildAccelerationUpdater connectionLenghtProvider simulationState timeChange)
 
@@ -117,6 +102,7 @@ module Setup =
                          timeChange)
 
             stateful {
+                do! vehicleStateUpdater
                 do! accelerationUpdater
                 do! speedUpdater
                 return! locationUpdater
@@ -142,12 +128,7 @@ module Setup =
     module ApiFunctions =
         open TrafficLights
 
-        let updateSimulationState simulationState timeInterval =
-            //let vehicleSequenceUpdater = buildSequenceUpdater simulationState
-            //let newVehicles = vehicleSequenceUpdater timeInterval
-            //let newTrafficLights = simulationState.TrafficLights |> Set.map (fun tl -> tl |> Functions.updateLightSystem timeInterval)
-
-            //{ simulationState with Vehicles = newVehicles |> Seq.toList ; TrafficLights = newTrafficLights}
+        let updateSimulationState simulationState timeInterval =      
 
             let vehicleSequenceComputation =
                 Computation.buildVehiclesSequenceComputation simulationState
@@ -160,7 +141,8 @@ module Setup =
             let newCollisions =
                 newCollisions |> List.choose id |> Set.ofList
 
-            let newVehicles = newCollisions |> Collision.resolve (newVehicles |> Set.ofList)
+            let newVehicles = 
+                newVehicles|> Set.ofList |> Set.filter (fun v -> v.State = VehicleState.ToBeRemoved |> not)
 
             let newTrafficLights =
                 simulationState.TrafficLights
@@ -168,7 +150,8 @@ module Setup =
 
             { simulationState with
                   Vehicles = newVehicles 
-                  TrafficLights = newTrafficLights }
+                  TrafficLights = newTrafficLights 
+                  Collisions = newCollisions }
 
         let init () =
             let crossings =
@@ -247,9 +230,11 @@ module Setup =
                   Vehicle.Location =
                       { ObjectLocation.CurrentProgress = (Fraction.tryCreate start) |> Option.get
                         Placing = connections.[1] }
-                  DrivePath = None }
+                  DrivePath = None 
+                  State = VehicleState.Running
+                  }
 
-            let count = 10
+            let count = 20
 
             let vehicles =
                 Seq.init count (fun i ->
@@ -284,6 +269,7 @@ module Setup =
                 return
                     { SimulationState.Vehicles = vehicles
                       SimulationState.ConnectionsGraph = cG
-                      TrafficLights = tl |> set }
+                      TrafficLights = tl |> set 
+                      Collisions = Set.empty }
              })
             |> Option.defaultWith (fun () -> failwith "Error creating graph")

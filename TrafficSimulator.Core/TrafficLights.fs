@@ -35,7 +35,7 @@ module TrafficLights =
           LastUpdateTime: float<s> }
         member this.CycleTimeSpan =
             let v =
-                TimeInterval.create
+                TimeInterval.tryCreate
                     (this.FirstGroup.GreenLightInterval.Value
                      + this.SecondGroup.GreenLightInterval.Value)
 
@@ -165,7 +165,7 @@ module TrafficLights =
                 timePassed / lightSystem.CycleTimeSpan.Value
 
             let rest =
-                TimeInterval.create
+                TimeInterval.tryCreate
                     ((temp - float (int temp))
                      * lightSystem.CycleTimeSpan.Value)
 

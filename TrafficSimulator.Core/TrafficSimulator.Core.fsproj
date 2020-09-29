@@ -10,6 +10,8 @@
     <Compile Include="QuadraticBezier.fs" />
     <Compile Include="DomainModel.fs" />
     <Compile Include="TrafficLights.fs" />
+    <Compile Include="Obstacles.fs" />
+    <Compile Include="Collisions.fs" />
     <Compile Include="Vehicles.fs" />
     <Compile Include="SimulationSetup.fs" />
     <Compile Include="SimulationApi.fs" />

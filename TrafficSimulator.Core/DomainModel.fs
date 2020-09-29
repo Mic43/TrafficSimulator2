@@ -7,16 +7,13 @@ open BaseTypes
 open QuadraticBezier
 
 module DomainModel =
-
-    type Curve = float
-
+  
     type Crossing =
         { Name: option<string>
           Position: Position }
 
     type ConnectionType =
-        | Linear
-        | Curved of Curve
+        | Linear       
         | QuadraticBezier of QuadraticBezier
 
     type Connection =
@@ -32,7 +29,7 @@ module DomainModel =
     type VehicleMotionParams =
         { Acceleration: float<m / (s * s)>
           Speed: float<m / s> }
-
+         
     type VehicleTypeParams =
         { MaximumParamaters: VehicleMotionParams
           MinimumParameters: VehicleMotionParams }
@@ -56,13 +53,19 @@ module DomainModel =
 
     type DrivePath = private DrivePath of Map<CrossingId, Connection>
 
+
+    type CollidedState = {StateDuration:TimeInterval}
+    type VehicleState = Running | Collided of CollidedState | ToBeRemoved
+
     [<CustomEquality; CustomComparison>]
     type Vehicle =
+
         { Id: VehicleId
           Location: ObjectLocation
           CurrentMotionParams: VehicleMotionParams
           VehicleTypeParams: VehicleTypeParams
-          DrivePath: DrivePath option }
+          DrivePath: DrivePath option 
+          State: VehicleState }
 
         member this.makeStopped() = 
             {this with CurrentMotionParams = {this.CurrentMotionParams with Speed=0.0<m/s>}}
@@ -71,7 +74,7 @@ module DomainModel =
             {stopped with VehicleTypeParams = 
                           {stopped.VehicleTypeParams with MaximumParamaters = 
                                                           {stopped.VehicleTypeParams.MaximumParamaters with Speed = 0.0<m/s>}}}
-
+        
         override this.Equals(other) =
             match other with
             | :? Vehicle as other -> this.Id = other.Id
@@ -180,15 +183,9 @@ module DomainFunctions =
     type ConnectionLenghtProvider = Connection -> Distance
     type NextConnectionChooser = CrossingId -> Connection option
 
-    module LenghtProviders =
-        let constantLenghtProvider (connectionsGraph: ConnectionsGraph) connection =
-            match connection.ConnectionType with
-            | Curved c -> 100.0<m>
-            | Linear -> 100.0<m>
-
+    module LenghtProviders =       
         let lenghtProvider (distancePerUnit: float<m>) (connectionsGraph: ConnectionsGraph) connection =
-            match connection.ConnectionType with
-            | Curved c -> failwith "Not implemented"
+            match connection.ConnectionType with   
             | QuadraticBezier bezier ->
                 let p0 =
                     (connection.Start connectionsGraph).Position
@@ -198,8 +195,7 @@ module DomainFunctions =
                 let p2 =
                     (connection.End connectionsGraph).Position
 
-                (QuadraticBezier.calculateLenght p0 p1 p2)
-                * distancePerUnit
+                (QuadraticBezier.calculateLenght p0 p1 p2) * distancePerUnit
             | Linear ->
                 let endC = connection.End connectionsGraph
                 let startC = connection.Start connectionsGraph
@@ -221,8 +217,7 @@ module DomainFunctions =
 
         match (startPos, endPos) with
         | (Position2d pos1, Position2d pos2) ->
-            match position.Placing.ConnectionType with
-            | Curved c -> failwith "Not implemented"
+            match position.Placing.ConnectionType with           
             | Linear ->
                 let currentPos = position.CurrentProgress.Value
 
