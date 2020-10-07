@@ -1,7 +1,7 @@
 ﻿namespace TrafficSimulator.Core
 
 open Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols
-open System
+open FSharp.Collections.ParallelSeq
 open Common
 open BaseTypes
 open DomainModel
@@ -212,16 +212,16 @@ module Vehicles =
 
         let update (computations: VehicleWithComputation<'TResult> seq) =
             computations
-            |> Seq.map (fun w -> (Stateful.execute w.Vehicle w.Computation))
+            |> PSeq.map (fun w -> (Stateful.execute w.Vehicle w.Computation)) |> PSeq.toArray |> Seq.ofArray
         //|> Seq.map (fun (v, _) -> v)
         let updateByPlacing (sequenceUpdater: SequenceComputation<'TResult>)
                             (computations: VehicleWithComputation<'TResult> seq)
                             =
             computations
-            |> Seq.groupBy (fun w -> w.Vehicle.Location.Placing)
-            |> Seq.map
+            |> PSeq.groupBy (fun w -> w.Vehicle.Location.Placing)
+            |> PSeq.map
                 ((fun (_, vehicles) ->
                     vehicles
                     |> Seq.sortByDescending (fun w -> w.Vehicle.Location.CurrentProgress))
                  >> (fun vehiclesOnSameConnection -> sequenceUpdater vehiclesOnSameConnection))
-            |> Seq.fold (fun acc cur -> acc |> Seq.append cur) Seq.empty
+            |> PSeq.fold (fun acc cur -> acc |> Seq.append cur) Seq.empty

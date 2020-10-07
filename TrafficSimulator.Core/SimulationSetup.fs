@@ -1,76 +1,103 @@
 namespace TrafficSimulator.Core
 
+open System
 open Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols
+open FSharp.Collections.ParallelSeq
 open Common
 open BaseTypes
 open DomainModel
 open DomainFunctions
 open Vehicles
 open Collisions
+open Common
+open Common
 
 type SimulationState =
     { ConnectionsGraph: ConnectionsGraph
       Vehicles: Vehicle Set
       Collisions: Collision Set
-      TrafficLights: TrafficLights.LightSystem Set } // TODO: change to map by id
+      TrafficLights: TrafficLights.LightSystem Set } 
 
 module Setup =
 
     let private distancePerUnit = 10.0<m>
     let private collisionDuration = TimeInterval.create 5.0<s>
+
     let private nextConnectionChooserFactory (vehicle: Vehicle) connectionsGraph =
         match vehicle.DrivePath with
         | Some (schedule) -> NextConnectionChoosers.chooseByDrivePath schedule
-        | None -> NextConnectionChoosers.chooseRandom connectionsGraph
+        | None -> NextConnectionChoosers.chooseRandom2 vehicle connectionsGraph
 
     let private connectionLenghtProvider connectionsGraph =
         LenghtProviders.lenghtProvider distancePerUnit connectionsGraph
-
-    let private buildAccelerationUpdater connectionLenghtProvider simulationState =
-        let vehiclleAccelMapHard = Map.empty
-                                    .Add( 3.0<m>,-10.0<m/(s*s)>)
-                                    .Add( 2.0<m>,-20.0<m/(s*s)>)
-                                    .Add( 1.0<m>,-75.0<m/(s*s)>)
-                                    //.Add( 0.5<m>,-150.0<m/(s*s)>)
-        let vehiclleAccelMapLight =
-            Map.empty.Add(4.0<m>, -2.0<m/(s*s)>)
-                     .Add(3.0<m>, -8.0<m/(s*s)>)
-
-        let vehiclesFinder =
-            Obstacles.Finders.nearestVehiceAheadOnSameConnection connectionLenghtProvider simulationState.Vehicles
-
-        let crossingFinder =
-            Obstacles.Finders.nextCrossing simulationState.ConnectionsGraph connectionLenghtProvider
-
-        let trafficLightsFinder =
-            Obstacles.Finders.nearestRedLightAheadOnSameConnection connectionLenghtProvider simulationState.TrafficLights
-
-        let nearestFinder =
-            Obstacles.Finders.nearestObstacle
-                (seq {
-                    vehiclesFinder
-                    trafficLightsFinder
-                 })
-
-        //let finder = ObstacleFinders.nearestObstacle finders
-        let updaters =
-            seq {
-                Updaters.accelerateMaximally
-
-                Updaters.breakOnlyIfSpeedGreaterThan
-                    5.0<m/s>
-                    (Updaters.breakByDistance vehiclleAccelMapLight crossingFinder)
-
-                Updaters.breakOnlyIfSpeedGreaterThan
-                    0.0<m/s>
-                    (Updaters.breakByDistance vehiclleAccelMapHard nearestFinder)
-            }
-
-        Updaters.compositeUpdater updaters
+   
 
     module Computation =
-        open Common.Stateful
-        open SequenceComputation
+        open Common.Stateful        
+        //open Common.Reader
+
+        //type IConsole() = 
+        //    member this.readLine() = Console.ReadLine()
+            
+        //let f = 
+        //    let zz =  Reader (fun (input:IConsole) -> input.readLine() + "a")
+        //    let zz2 =  Reader (fun (input:IConsole) -> input.readLine() |> int )
+
+        //    let tst = 
+        //        reader {
+        //            let! a = zz
+        //            let! b = zz2
+        //            if b > 3 then 
+        //                return a 
+        //            else return ""                
+        //        }
+        //    let runner =  Reader.execute (new IConsole())
+        //    tst |> runner
+            
+        let private buildAccelerationUpdater nextConnectionChooser connectionLenghtProvider simulationState =
+               let vehiclleAccelMapHard = Map.empty
+                                           .Add( 3.0<m>,-10.0<m/(s*s)>)
+                                           .Add( 2.0<m>,-20.0<m/(s*s)>)
+                                           .Add( 1.0<m>,-75.0<m/(s*s)>)
+                                           //.Add( 0.5<m>,-150.0<m/(s*s)>)
+               let vehiclleAccelMapLight =
+                   Map.empty.Add(4.0<m>, -2.0<m/(s*s)>)
+                            .Add(3.0<m>, -12.0<m/(s*s)>)
+               
+               let vehiclesFinder =
+                   Obstacles.Finders.nearestVehiceAheadOnPath simulationState.ConnectionsGraph 
+                                                              nextConnectionChooser 
+                                                              connectionLenghtProvider 
+                                                              simulationState.Vehicles
+
+               let crossingFinder =
+                   Obstacles.Finders.nextCrossing simulationState.ConnectionsGraph connectionLenghtProvider
+
+               let trafficLightsFinder =
+                   Obstacles.Finders.nearestRedLightAheadOnSameConnection connectionLenghtProvider simulationState.TrafficLights
+
+               let nearestFinder =
+                   Obstacles.Finders.nearestObstacle
+                       (seq {
+                           vehiclesFinder
+                           trafficLightsFinder
+                        })
+
+               //let finder = ObstacleFinders.nearestObstacle finders
+               let updaters =
+                   seq {
+                       Updaters.accelerateMaximally
+
+                       Updaters.breakOnlyIfSpeedGreaterThan
+                           5.0<m/s>
+                           (Updaters.breakByDistance vehiclleAccelMapLight crossingFinder)
+
+                       Updaters.breakOnlyIfSpeedGreaterThan
+                           0.0<m/s>
+                           (Updaters.breakByDistance vehiclleAccelMapHard nearestFinder)
+                   }
+
+               Updaters.compositeUpdater updaters
 
         let buildComputationForVehicle simulationState timeChange (vehicle: Vehicle) =
             let connectionsGraph = simulationState.ConnectionsGraph
@@ -84,11 +111,10 @@ module Setup =
             let collisionsVehiclesFinder =
                 Obstacles.Finders.nearestVehiceAheadOnSameConnection connectionLenghtProvider simulationState.Vehicles
 
-
             let vehicleStateUpdater = 
                 fromAction (Updaters.stateUpdater collisionDuration simulationState.Collisions timeChange)
             let accelerationUpdater =
-                fromAction (buildAccelerationUpdater connectionLenghtProvider simulationState timeChange)
+                fromAction (buildAccelerationUpdater nextConnectionChooser connectionLenghtProvider simulationState timeChange)
 
             let speedUpdater =
                 fromAction (Updaters.speedUpdater timeChange)
@@ -172,7 +198,7 @@ module Setup =
                           Position = Position2d { X = 0.5; Y = 1.5 } })
                    .Add(CrossingId 6,
                         { Name = None
-                          Position = Position2d { X = 3.0; Y = 0.0 } })
+                          Position = Position2d { X = 3.0; Y = 0.1 } })
 
             let connections =
                 [ DomainFunctions.bezierFromCrossings
@@ -216,8 +242,27 @@ module Setup =
                       crossings
                       (CrossingId 6)
                       (CrossingId 5)
-                      (Position2d { X = 1.5; Y = 0.0 }) ]
-
+                      (Position2d { X = 1.5; Y = 0.0 }) 
+                  { ConnectionType = Linear
+                    StartId = CrossingId 3
+                    EndId = CrossingId 4 } 
+                  { ConnectionType = Linear
+                    StartId = CrossingId 4
+                    EndId = CrossingId 3 } 
+                  { ConnectionType = Linear
+                    StartId = CrossingId 4
+                    EndId = CrossingId 6 } 
+                  { ConnectionType = Linear
+                    StartId = CrossingId 6
+                    EndId = CrossingId 4 } 
+                  { ConnectionType = Linear
+                    StartId = CrossingId 2
+                    EndId = CrossingId 3 }                                        
+                  { ConnectionType = Linear
+                    StartId = CrossingId 3
+                    EndId = CrossingId 2 }                    
+                    ]
+                
             let connectionsGraph =
                 ConnectionsGraph.create crossings connections
 

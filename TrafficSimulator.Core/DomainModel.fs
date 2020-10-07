@@ -7,13 +7,13 @@ open BaseTypes
 open QuadraticBezier
 
 module DomainModel =
-  
+
     type Crossing =
         { Name: option<string>
           Position: Position }
 
     type ConnectionType =
-        | Linear       
+        | Linear
         | QuadraticBezier of QuadraticBezier
 
     type Connection =
@@ -29,7 +29,7 @@ module DomainModel =
     type VehicleMotionParams =
         { Acceleration: float<m / (s * s)>
           Speed: float<m / s> }
-         
+
     type VehicleTypeParams =
         { MaximumParamaters: VehicleMotionParams
           MinimumParameters: VehicleMotionParams }
@@ -51,11 +51,16 @@ module DomainModel =
                   { Acceleration = -20.0<m/(s*s)>
                     Speed = 0.0<m/s> } }
 
-    type DrivePath = private DrivePath of Map<CrossingId, Connection>
+    type GraphPath =
+        private { ByCrossing: Map<CrossingId, Connection>
+                  ConnectionsSequence: Connection seq }
 
+    type CollidedState = { StateDuration: TimeInterval }
 
-    type CollidedState = {StateDuration:TimeInterval}
-    type VehicleState = Running | Collided of CollidedState | ToBeRemoved
+    type VehicleState =
+        | Running
+        | Collided of CollidedState
+        | ToBeRemoved
 
     [<CustomEquality; CustomComparison>]
     type Vehicle =
@@ -64,17 +69,26 @@ module DomainModel =
           Location: ObjectLocation
           CurrentMotionParams: VehicleMotionParams
           VehicleTypeParams: VehicleTypeParams
-          DrivePath: DrivePath option 
+          DrivePath: GraphPath option
           State: VehicleState }
+        member this.isBeforeOnSameConnection other = 
+            (this.Location.Placing = other.Location.Placing) && this.Location.CurrentProgress <= other.Location.CurrentProgress
+        member this.makeStopped() =
+            { this with
+                  CurrentMotionParams =
+                      { this.CurrentMotionParams with
+                            Speed = 0.0<m/s> } }
 
-        member this.makeStopped() = 
-            {this with CurrentMotionParams = {this.CurrentMotionParams with Speed=0.0<m/s>}}
-        member this.makeImmovable() = 
-            let stopped = this.makeStopped()
-            {stopped with VehicleTypeParams = 
-                          {stopped.VehicleTypeParams with MaximumParamaters = 
-                                                          {stopped.VehicleTypeParams.MaximumParamaters with Speed = 0.0<m/s>}}}
-        
+        member this.makeImmovable() =
+            let stopped = this.makeStopped ()
+
+            { stopped with
+                  VehicleTypeParams =
+                      { stopped.VehicleTypeParams with
+                            MaximumParamaters =
+                                { stopped.VehicleTypeParams.MaximumParamaters with
+                                      Speed = 0.0<m/s> } } }
+
         override this.Equals(other) =
             match other with
             | :? Vehicle as other -> this.Id = other.Id
@@ -137,8 +151,8 @@ module DomainModel =
             |> Seq.collect id
             |> Seq.filter (fun con -> con.StartId = crossingId)
 
-    module DrivePath =
-        let create (connectionsGraph: ConnectionsGraph) (connectionsToVisit: Connection seq) =
+    module GraphPath =
+        let tryCreate (connectionsGraph: ConnectionsGraph) (connectionsToVisit: Connection seq) =
             if not
                 (connectionsToVisit
                  |> Seq.forall (fun con ->
@@ -152,12 +166,21 @@ module DomainModel =
                 None
             else
                 Some
-                    (DrivePath
-                        (connectionsToVisit
-                         |> Seq.map (fun conn -> conn.StartId, conn)
-                         |> Map.ofSeq))
+                    { ByCrossing =
+                          (connectionsToVisit
+                           |> Seq.map (fun conn -> conn.StartId, conn)
+                           |> Map.ofSeq)
+                      ConnectionsSequence = connectionsToVisit }
+        let create (connectionsGraph: ConnectionsGraph) (connectionsToVisit: Connection seq) = 
+            tryCreate connectionsGraph connectionsToVisit |> Option.defaultWith (fun () -> failwith "error creating path")
+        let fromSingleConnection connection =
+            { ByCrossing = Map.empty.Add(connection.StartId, connection)
+              ConnectionsSequence = [ connection ] }
 
-        let tryGetConnection crossingId (DrivePath driveSchedule) = driveSchedule |> Map.tryFind crossingId
+        let tryGetConnection crossingId (driveSchedule: GraphPath) =
+            driveSchedule.ByCrossing |> Map.tryFind crossingId
+
+        let getConnectionsSequence (driveSchedule: GraphPath) = driveSchedule.ConnectionsSequence
 
     type Connection with
         member this.Start(cg: ConnectionsGraph) =
@@ -183,9 +206,9 @@ module DomainFunctions =
     type ConnectionLenghtProvider = Connection -> Distance
     type NextConnectionChooser = CrossingId -> Connection option
 
-    module LenghtProviders =       
+    module LenghtProviders =
         let lenghtProvider (distancePerUnit: float<m>) (connectionsGraph: ConnectionsGraph) connection =
-            match connection.ConnectionType with   
+            match connection.ConnectionType with
             | QuadraticBezier bezier ->
                 let p0 =
                     (connection.Start connectionsGraph).Position
@@ -195,7 +218,8 @@ module DomainFunctions =
                 let p2 =
                     (connection.End connectionsGraph).Position
 
-                (QuadraticBezier.calculateLenght p0 p1 p2) * distancePerUnit
+                (QuadraticBezier.calculateLenght p0 p1 p2)
+                * distancePerUnit
             | Linear ->
                 let endC = connection.End connectionsGraph
                 let startC = connection.Start connectionsGraph
@@ -217,7 +241,7 @@ module DomainFunctions =
 
         match (startPos, endPos) with
         | (Position2d pos1, Position2d pos2) ->
-            match position.Placing.ConnectionType with           
+            match position.Placing.ConnectionType with
             | Linear ->
                 let currentPos = position.CurrentProgress.Value
 
@@ -246,6 +270,9 @@ module DomainFunctions =
         let chooseFirst connectionsGraph crossingId =
             ConnectionsGraph.crossingOutputs connectionsGraph crossingId
             |> Seq.tryHead
+        let chooseLast connectionsGraph crossingId =
+            ConnectionsGraph.crossingOutputs connectionsGraph crossingId
+            |> Seq.tryLast
 
         let chooseRandom connectionsGraph crossingId =
             let outputs =
@@ -258,9 +285,21 @@ module DomainFunctions =
                 outputs
                 |> Seq.item ((Seq.length outputs) |> Random().Next)
                 |> Some
+        let chooseRandom2 (vehicle:Vehicle) connectionsGraph crossingId =
+            let outputs =
+                crossingId
+                |> ConnectionsGraph.crossingOutputs connectionsGraph
 
+            if outputs |> Seq.isEmpty then
+                None
+            else
+                let (VehicleId id) = vehicle.Id
+                let (CrossingId crossingId) = crossingId
+                outputs
+                |> Seq.item ((id + crossingId) % (Seq.length outputs))
+                |> Some
         let chooseByDrivePath schedule crossingId =
-            schedule |> DrivePath.tryGetConnection crossingId
+            schedule |> GraphPath.tryGetConnection crossingId
 
         let doNotTurnBack (vehicle: Vehicle) (chooser: NextConnectionChooser) connectionsGraph crossingId =
             let perform = chooser crossingId
