@@ -37,21 +37,3 @@ module Stateful =
         member _.Return(value) = ret value
         member _.ReturnFrom(value) = value
     let stateful = StatefulBuilder()
-module Reader = 
-    type Reader<'TState,'TOutput> = Reader of ('TState->'TOutput) 
-    let execute s (Reader reader) = reader s
-    let ret v = Reader (fun _ -> v)
-    let bind binder (reader:Reader<'TState,'TOutput>) = 
-        let a = fun s -> execute s reader
-        let b = fun s -> (a s) |> binder
-        let c = fun s -> (b s) |> execute s
-        Reader c
-
-    [<Struct>]
-    type ReaderBuilder =
-          member _.Bind(opt, binder) = bind binder opt
-          member _.Return(value) = ret value
-          member _.ReturnFrom(value) = value
-    let reader = ReaderBuilder()
-        //let reader2 = ret (fun s-> binder (execute s reader))
-        //reader2

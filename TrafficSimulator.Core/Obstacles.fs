@@ -1,8 +1,6 @@
 ﻿namespace TrafficSimulator.Core
 
-open Common
 open BaseTypes
-open Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols
 open DomainModel
 open DomainFunctions
 
@@ -19,102 +17,34 @@ module Obstacles =
             | _ -> None
 
     type ObstacleFinder = Vehicle -> (Obstacle * Distance) option
-
+    
     module Finders =
         open TrafficLights
-
-        let nearestVehicleAhead (path: GraphPath)
-                                (connectionLenghtProvider: ConnectionLenghtProvider)
-                                allVehicles
-                                (vehicle: Vehicle)
-                                =
-
-            let vehicleProgress (vehicle: Vehicle) =
-                (Fraction.toDistance
-                    (connectionLenghtProvider vehicle.Location.Placing)
-                     vehicle.Location.CurrentProgress)
-
-            //let res = optional {
-            let a =
-                GraphPath.getConnectionsSequence path
-                |> Seq.collect (fun c ->
-                    getVehiclesOnConnection c allVehicles
-                    |> Seq.sortBy (fun v -> v.Location.CurrentProgress))
-                |> Seq.toList
-
-            let nearest =
-                a
-                |> Seq.skipWhile (fun v ->
-                    v.Id = vehicle.Id
-                    || v.isBeforeOnSameConnection vehicle)
-                |> Seq.toList
-                |> List.tryHead
-
-            let connection = vehicle.Location.Placing
-
-            nearest
-            |> Option.bind (fun nearest ->
-
-                let distance =
-                    GraphPath.getConnectionsSequence path
-                    |> Seq.skipWhile (fun con -> con = connection |> not)
-                    |> Seq.takeWhile (fun con -> con = nearest.Location.Placing |> not)
-                    |> Seq.fold (fun distance con -> distance + (connectionLenghtProvider con)) 0.0<m>
-
-                //return
-                Some
-                    (Obstacle.OtherVehicle nearest,
-                     distance
-                     + (vehicleProgress nearest)
-                     - (vehicleProgress vehicle)))
-        //}
-        // res
-
-        let nearestVehiceAheadOnPath connectionGraph
-                                     (nextConnectionChooser: NextConnectionChooser)
-                                     (connectionLenghtProvider: ConnectionLenghtProvider)
-                                     allVehicles
-                                     (vehicle: Vehicle)
-                                     =
-            let connections =
-                [ Some(vehicle.Location.Placing)
-                  (nextConnectionChooser vehicle.Location.Placing.EndId) ]
-                |> List.choose id
-
-            let path =
-                (GraphPath.create connectionGraph connections)
-
-            nearestVehicleAhead path connectionLenghtProvider allVehicles vehicle
+        
 
         let nearestVehiceAheadOnSameConnection (connectionLenghtProvider: ConnectionLenghtProvider)
                                                allVehicles
                                                (vehicle: Vehicle)
                                                =
-            nearestVehicleAhead
-                (GraphPath.fromSingleConnection vehicle.Location.Placing)
-                connectionLenghtProvider
+            let currentProgress (vehicle: Vehicle) = vehicle.Location.CurrentProgress
+
+            let connLen =
+                connectionLenghtProvider vehicle.Location.Placing
+
+            let vehicles =
                 allVehicles
-                vehicle
-        //let currentProgress (vehicle: Vehicle) = vehicle.Location.CurrentProgress
+                |> getVehiclesOnConnection vehicle.Location.Placing
+                |> Seq.filter (fun v -> not (v.Id = vehicle.Id))
+                |> Seq.filter (fun v -> v.Location.CurrentProgress > vehicle.Location.CurrentProgress)
+                |> Seq.map (fun v ->
+                    (v, Fraction.distanceOnSameConnecton (currentProgress vehicle) (currentProgress v) connLen))
 
-        //let connLen =
-        //    connectionLenghtProvider vehicle.Location.Placing
-
-        //let vehicles =
-        //    allVehicles
-        //    |> getVehiclesOnConnection vehicle.Location.Placing
-        //    |> Seq.filter (fun v -> not (v.Id = vehicle.Id))
-        //    |> Seq.filter (fun v -> v.Location.CurrentProgress > vehicle.Location.CurrentProgress)
-        //    |> Seq.map (fun v ->
-        //        (v, Fraction.distanceOnSameConnecton (currentProgress vehicle) (currentProgress v) connLen))
-
-        //if vehicles |> Seq.isEmpty then
-        //    None
-        //else
-        //    match vehicles
-        //          |> Seq.minBy (fun (v, distance) -> distance) with
-        //    | (vehicle, distance) -> Some(Obstacle.OtherVehicle vehicle, distance)
-
+            if vehicles |> Seq.isEmpty then
+                None
+            else
+                match vehicles
+                      |> Seq.minBy (fun (v, distance) -> distance) with
+                | (vehicle, distance) -> Some(Obstacle.OtherVehicle vehicle, distance)
 
 
         // TODO: To similiart to nearestVehicleFinding

@@ -30,5 +30,7 @@ module Collisions =
             |> Set.map (fun collidable ->
                 match collidable with
                 | Vehicle v -> v.makeImmovable())
+
+        //allVehicles |> Set.map (fun v -> if (collidedVehiclesSet.Contains v) then collidedVehiclesSet.)
         (Set.difference allVehicles collidedVehiclesSet) |> Set.union collidedVehiclesSet
   
