@@ -18,6 +18,8 @@ module Setup =
 
     let private distancePerUnit = 10.0<m>
     let private collisionDuration = TimeInterval.create 5.0<s>
+
+
     let private nextConnectionChooserFactory (vehicle: Vehicle) connectionsGraph =
         match vehicle.DrivePath with
         | Some (schedule) -> NextConnectionChoosers.chooseByDrivePath schedule
@@ -84,15 +86,12 @@ module Setup =
             let collisionsVehiclesFinder =
                 Obstacles.Finders.nearestVehiceAheadOnSameConnection connectionLenghtProvider simulationState.Vehicles
 
-
             let vehicleStateUpdater = 
                 fromAction (Updaters.stateUpdater collisionDuration simulationState.Collisions timeChange)
             let accelerationUpdater =
                 fromAction (buildAccelerationUpdater connectionLenghtProvider simulationState timeChange)
-
             let speedUpdater =
                 fromAction (Updaters.speedUpdater timeChange)
-
             let locationUpdater =
                 Stateful
                     (Updaters.locationUpdater
