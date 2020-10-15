@@ -52,8 +52,7 @@ module DomainModel =
                     Speed = 0.0<m/s> } }
 
     type DrivePath = private DrivePath of Map<CrossingId, Connection>
-
-
+  
     type CollidedState = {StateDuration:TimeInterval}
     type VehicleState = Running | Collided of CollidedState | ToBeRemoved
 
@@ -205,7 +204,7 @@ module DomainFunctions =
 
                 distance * distancePerUnit
 
-    let calculateDistanceTravelled (speed: Speed) (TimeInterval timeChange) = speed * timeChange
+    let calculateDistanceTravelled (speed: Speed) (timeChange:TimeInterval) = speed * timeChange.Value
 
     let locationToPosition (connectionsGraph: ConnectionsGraph) (position: ObjectLocation) =
         let startPos =

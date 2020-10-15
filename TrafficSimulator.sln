@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TrafficSimulator.WinDesktop
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "TrafficSimulator.Core", "TrafficSimulator.Core\TrafficSimulator.Core.fsproj", "{7EAA4BA6-5CD9-4A4C-811B-4239BECAE28C}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "TrafficSimulator.Tests", "TrafficSimulator.Tests\TrafficSimulator.Tests.fsproj", "{5955CF6E-D195-43F4-AFF6-050228FF2EBC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,18 @@ Global
 		{7EAA4BA6-5CD9-4A4C-811B-4239BECAE28C}.Release|x64.Build.0 = Release|Any CPU
 		{7EAA4BA6-5CD9-4A4C-811B-4239BECAE28C}.Release|x86.ActiveCfg = Release|Any CPU
 		{7EAA4BA6-5CD9-4A4C-811B-4239BECAE28C}.Release|x86.Build.0 = Release|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Debug|x64.Build.0 = Debug|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Debug|x86.Build.0 = Debug|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Release|x64.ActiveCfg = Release|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Release|x64.Build.0 = Release|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Release|x86.ActiveCfg = Release|Any CPU
+		{5955CF6E-D195-43F4-AFF6-050228FF2EBC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

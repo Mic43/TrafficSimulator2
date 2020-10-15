@@ -244,8 +244,8 @@ module Setup =
                         ((float i) / (float count)))
                 |> Set.ofSeq
 
-            let greenRedInterval = (TimeInterval 5.0<s>)
-            let greenRedInterval2 = (TimeInterval 3.0<s>)
+            let greenRedInterval = (TimeInterval.create 5.0<s>)
+            let greenRedInterval2 = (TimeInterval.create 3.0<s>)
 
             let trafficLights =
                 [ Functions.createCrossingLightSystem

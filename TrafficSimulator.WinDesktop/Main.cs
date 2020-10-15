@@ -60,7 +60,7 @@ namespace TrafficSimulator.WinDesktop
 
         private void timerSimulation_Tick(object sender, EventArgs e)
         {
-            _simulationState = Api.handleCommand(Api.Command.NewUpdate(TimeInterval.NewTimeInterval(TimeSpan.FromMilliseconds(timerSimulation.Interval).TotalSeconds)), _simulationState);
+            _simulationState = Api.handleCommand(Api.Command.NewUpdate(TimeIntervalModule.create (TimeSpan.FromMilliseconds(timerSimulation.Interval).TotalSeconds)), _simulationState);
             panelBoard.Refresh();
         }
 

@@ -76,32 +76,8 @@ module Vehicles =
             { vehicle with
                   CurrentMotionParams = newMotionParams }
 
-        //let accelerationUpdater viewDistnace
-        //                        targetSpeed
-        //                        (connectionLenghtProvider: ConnectionLenghtProvider)
-        //                        (timeChange: TimeInterval)
-        //                        (vehicle: Vehicle)
-        //                        =
-        //    let len =
-        //        connectionLenghtProvider vehicle.Location.Placing
-        //    let travelled =
-        //        Fraction.toDistance len vehicle.Location.CurrentProgress
-        //    //  let targetSpeed = 1.0<m/s>
-        //    let newAccel =
-        //        if len - travelled < viewDistnace then
-        //            if vehicle.CurrentMotionParams.Speed > targetSpeed
-        //            then vehicle.VehicleTypeParams.MinimumParameters.Acceleration
-        //            else 0.0<m/(s*s)>
-        //        else
-        //            vehicle.VehicleTypeParams.MaximumParamaters.Acceleration
-        //    let newMotionParams =
-        //        { vehicle.CurrentMotionParams with
-        //              Acceleration = newAccel }
-        //    { vehicle with
-        //          CurrentMotionParams = newMotionParams }
-
         let speedUpdater (timeChange: TimeInterval) vehicle =
-            let (TimeInterval dt) = timeChange
+            let dt = timeChange.Value
 
             let newSpeed =
                 vehicle.CurrentMotionParams.Speed

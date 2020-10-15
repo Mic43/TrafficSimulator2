@@ -21,7 +21,6 @@ module Obstacles =
     module Finders =
         open TrafficLights
         
-
         let nearestVehiceAheadOnSameConnection (connectionLenghtProvider: ConnectionLenghtProvider)
                                                allVehicles
                                                (vehicle: Vehicle)

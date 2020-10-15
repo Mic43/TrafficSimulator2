@@ -28,7 +28,10 @@ module TrafficLights =
                       |> Set.map (fun l -> { l with State = lightState }) }
 
         member this.getLights() = this.Lights
-
+        member this.getInitialState() = this.InitialState
+        member this.getState() = 
+            assert (this.Lights.IsEmpty |> not)
+            this.Lights.MinimumElement.State
     type LightSystem =
         { FirstGroup: LightsGroup
           SecondGroup: LightsGroup
@@ -47,6 +50,9 @@ module TrafficLights =
             |> Set.union this.SecondGroup.Lights
 
     module Functions =
+        let getLights (lightsGroup:LightsGroup) = lightsGroup.getLights()
+        let getState (trafficLight:TrafficLight) = trafficLight.State
+
         let createRedLight location =
             { Location = location
               State = LightState.Red }
@@ -55,11 +61,11 @@ module TrafficLights =
             { Location = location
               State = LightState.Green }
 
-        let createLightGroup greenLightInterval lightsSet =
+        let tryCreateLightGroup greenLightInterval lightsSet =
             let lightStates =
-                (lightsSet |> Set.map (fun light -> light.State))
+                (lightsSet |> Set.map getState)
 
-            if (lightStates |> Set.count) > 1 then
+            if lightStates |> Set.count = 1 |> not then
                 None
             else
                 let onlyElement =
@@ -72,7 +78,9 @@ module TrafficLights =
                     ({ Lights = lightsSet
                        InitialState = onlyElement
                        GreenLightInterval = greenLightInterval })
-
+        let ceateLightGroup greenLightInterval lightsSet =
+                  tryCreateLightGroup greenLightInterval lightsSet
+                  |> Option.defaultWith (fun () -> invalidArg "value" "Not possible to create such light group")
         let createSimpleLightSystem greenLightInterval
                                     redLightInterval
                                     (lane1: Connection)
@@ -95,10 +103,10 @@ module TrafficLights =
                               CurrentProgress = location.getSymmetrical }
                      }
                      |> Set.ofSeq)
-                    |> createLightGroup greenLightInterval
+                    |> tryCreateLightGroup greenLightInterval
 
                 let fakegroup =
-                    Set.empty |> createLightGroup redLightInterval
+                    Set.empty |> tryCreateLightGroup redLightInterval
 
                 optional {
                     let! g1 = group1
@@ -136,14 +144,14 @@ module TrafficLights =
                     let getFraction len= (Fraction.tryFromDistance (len - lightsDistance) len) |> Option.defaultValue Fraction.zero
                     //let! pos connection = (connectionLenProvider connection)
                     let! g1 =
-                        createLightGroup
+                        tryCreateLightGroup
                             greenLightInterval1
                             (firstGroup
                              |> Set.map ( fun c -> (c,(connectionLenProvider c)))
                              |> Set.map (fun (c,len) -> createGreenLight { Placing = c; CurrentProgress = (getFraction len)}))
 
                     let! g2 =
-                        createLightGroup
+                        tryCreateLightGroup
                             greenLightInterval2
                             (secondGroup
                              |> Set.map ( fun c -> (c,(connectionLenProvider c)))

@@ -47,19 +47,24 @@ module BaseTypes =
     type Acceleration = float<m / (s * s)>
 
     type TimeInterval =
+        private
         | TimeInterval of float<s>
         member this.Value =
             let (TimeInterval v) = this
-            v   
-        static member ( + ) (left: TimeInterval, right: TimeInterval) =
-            TimeInterval (left.Value + right.Value)
+            v
+
+        static member (+)(left: TimeInterval, right: TimeInterval) = TimeInterval(left.Value + right.Value)
 
     module TimeInterval =
         let tryCreate value =
             if value >= 0.0<s> then Some(TimeInterval value) else None
-        let create value = 
-            (tryCreate value) |> Option.defaultWith (fun () -> failwith "cannot create neative interval")
-        let zero() = create 0.0<s> 
+
+        let create value =
+            (tryCreate value)
+            |> Option.defaultWith (fun () -> failwith "cannot create neative interval")
+
+        let zero () = create 0.0<s>
+
     type Fraction =
         private
         | Fraction of float
